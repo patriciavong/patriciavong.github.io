@@ -59,12 +59,10 @@ body {
     margin-top: 40px;
   }
 
-/* Para TODOS los destinos del menú */
-#sobre-mi,
-#proyectos,
-#cursos_seminarios,
-#hobbies {
+section {
   scroll-margin-top: 140px;
 }
 
+
   
+
