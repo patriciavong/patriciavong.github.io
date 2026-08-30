@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fichas educativas para pacientes</title>
+
+<!--
+  ============================================================
+  FICHAS EDUCATIVAS PARA PACIENTES — GINECOLOGÍA/OBSTETRICIA
+  ============================================================
+  Archivo único (HTML + CSS + JS). No requiere servidor ni
+  conexión a internet. Se puede abrir directo en el navegador,
+  mandar por WhatsApp/email, o subir a cualquier hosting simple.
+
+  ESTRUCTURA DEL ARCHIVO:
+    1. <style>   -> Diseño visual (colores, tipografía, layout)
+    2. <body>    -> Esqueleto vacío (todo el contenido se
+                    genera con JavaScript a partir de los datos)
+    3. <script>  -> a) DATOS de cada ficha (fácil de encontrar
+                       y editar, todo junto al inicio del script)
+                    b) Funciones que dibujan la app en pantalla
+                    c) Funciones de interacción (acordeón,
+                       comparador, checklist, imprimir)
+
+  PARA EDITAR CONTENIDO (Opción A — edición manual del código):
+    Busca el bloque "DATOS DE LAS FICHAS" más abajo. Cada ficha
+    es un objeto con textos simples. No hace falta tocar el CSS
+    ni las funciones para cambiar una palabra o agregar un punto
+    a una lista.
+  ============================================================
+-->
+
+<style>
+  /* ==========================================================
+     TOKENS DE DISEÑO
+     Paleta pensada para transmitir calma clínica, no un
+     hospital frío ni un rosa genérico de "app de mujeres".
+     ========================================================== */
+  :root {
+    --bg:            #FBF8F6; /* porcelana cálida, fondo general */
+    --surface:       #FFFFFF; /* tarjetas */
+    --ink:           #2E2530; /* texto principal, ciruela casi negro */
+    --ink-soft:      #6B5F6E; /* texto secundario */
+    --primary:       #4A3B52; /* ciruela profundo — encabezados, marca */
+    --accent:        #E8927C; /* coral suave — acciones, resaltes */
+    --accent-soft:   #F6DCD3; /* coral muy claro — fondos de resalte */
+    --calm:          #8FA998; /* verde salvia — "todo normal / tranquilo" */
+    --calm-soft:     #E4ECE4; /* fondo verde suave */
+    --alert:         #C97A62; /* terracota — "cuándo consultar" */
+    --alert-soft:    #FBEAE4;
+    --line:          #E7DFDB; /* bordes sutiles */
+    --amber:         #E3B24A; /* ámbar — paso intermedio del medidor de molestia */
+    --radius:        18px;
+    --radius-sm:     10px;
+    --shadow:        0 4px 20px rgba(74, 59, 82, 0.08);
+  }
+
+  /* Tipografía: Fraunces (serif cálida, humana) para títulos,
+     Inter para texto de lectura, IBM Plex Mono para datos/etiquetas
+     cortas (duración, nivel). Se cargan desde Google Fonts. */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fraunces', serif; margin: 0; }
+
+  .mono {
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- Layout general ---------- */
+  #app {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  header.app-header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  header.app-header h1 {
+    font-size: clamp(26px, 5vw, 34px);
+    font-weight: 600;
+    color: var(--primary);
+  }
+
+  header.app-header p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin-top: 8px;
+  }
+
+  /* ---------- Selector de fichas (pantalla inicial) ---------- */
+  #selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+
+  .selector-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 16px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .selector-card:hover,
+  .selector-card:focus-visible { transform: translateY(-3px); border-color: var(--accent); outline: none; }
+
+  .selector-card svg { width: 46px; height: 46px; margin-bottom: 10px; }
+  .selector-card h3 { font-size: 17px; color: var(--primary); }
+  .selector-card p  { font-size: 13px; color: var(--ink-soft); margin: 4px 0 0; }
+
+  /* ---------- Vista de ficha individual ---------- */
+  #ficha-view { display: none; }
+
+  .btn-volver {
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 8px 0;
+    margin-bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-volver:hover { color: var(--primary); }
+
+  .ficha-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .ficha-header svg { width: 44px; height: 44px; flex-shrink: 0; }
+  .ficha-header h2 { font-size: 24px; color: var(--primary); }
+  .ficha-header span { font-size: 13px; color: var(--ink-soft); }
+
+  /* ---------- Medidor de molestia (elemento distintivo) ----------
+     Barra horizontal con 4 tramos + una carita que indica el
+     nivel de esta ficha en particular. Es el mismo componente
+     visual en las 3 fichas, para que la paciente aprenda a
+     leerlo una vez y lo reconozca siempre. */
+  .medidor {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+  }
+  .medidor-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+  /* Medidor tipo "reglita": 4 segmentos, se rellenan de izquierda
+     a derecha según el nivel (1 a 4). Nada de degradados — solo
+     bloques con borde, mucho más simple y seguro al imprimir. */
+  .medidor-regla {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .medidor-segmento {
+    flex: 1;
+    height: 12px;
+    border-radius: 4px;
+    border: 2px solid var(--line);
+    background: var(--surface);
+    /* Fuerza a que el color de fondo SÍ se imprima (por defecto
+       el navegador lo omite al exportar a PDF). */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .medidor-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--primary);
+  }
+  /* Etiqueta numérica de respaldo (ej. "Nivel 2 de 4"), siempre
+     visible en texto plano además de la reglita. */
+  .medidor-nivel {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+  .medidor-nivel b { color: var(--primary); }
+
+  /* ---------- Acordeón ---------- */
+  .accordion-item {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .accordion-btn {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    background: none;
+    border: none;
+    padding: 16px 18px;
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--primary);
+    cursor: pointer;
+    text-align: left;
+  }
+  .accordion-chevron {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+    color: var(--accent);
+  }
+  .accordion-item.open .accordion-chevron { transform: rotate(180deg); }
+
+  .accordion-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+  .accordion-panel-inner {
+    padding: 0 18px 18px;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .accordion-panel-inner ul { margin: 6px 0; padding-left: 20px; }
+  .accordion-panel-inner li { margin-bottom: 4px; }
+
+  /* ---------- Checklist interactivo (sección "preparación") ---------- */
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .checklist-item:hover { background: var(--calm-soft); }
+  .checklist-box {
+    width: 20px; height: 20px;
+    border: 2px solid var(--calm);
+    border-radius: 5px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s ease;
+  }
+  .checklist-item.checked .checklist-box {
+    background: var(--calm);
+    border-color: var(--calm);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Marca de check (✓) que aparece dentro de la casilla al
+     seleccionarla. El texto ya NO se tacha — solo cambia el
+     estado de la casilla. */
+  .checklist-item.checked .checklist-box::after {
+    content: "✓";
+    color: var(--surface);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* ---------- Comparador de tipos (usado en la ficha de DIU) ---------- */
+  .comparador {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 6px 0 4px;
+  }
+  @media (max-width: 480px) { .comparador { grid-template-columns: 1fr; } }
+
+  .comparador-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    background: var(--bg);
+  }
+  .comparador-card h4 {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    color: var(--primary);
+    margin-bottom: 8px;
+  }
+  .comparador-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 5px 0;
+    border-top: 1px dashed var(--line);
+  }
+  .comparador-row:first-of-type { border-top: none; }
+  .comparador-row b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ---------- Caja de "cuándo consultar" (alerta) ---------- */
+  .caja-alerta {
+    background: var(--alert-soft);
+    border-left: 4px solid var(--alert);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+  .caja-alerta b { color: var(--alert); }
+
+  .caja-normal {
+    background: var(--calm-soft);
+    border-left: 4px solid var(--calm);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+  .caja-normal b { color: var(--primary); }
+
+  /* ---------- Mitos ---------- */
+  .mito {
+    padding: 10px 0;
+    border-top: 1px dashed var(--line);
+    font-size: 14px;
+  }
+  .mito:first-of-type { border-top: none; }
+  .mito .etiqueta-mito { color: var(--alert); font-weight: 600; }
+  .mito .etiqueta-real { color: var(--calm); font-weight: 600; }
+
+  /* ---------- Botones de acción al pie de la ficha ---------- */
+  .acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn-accion {
+    flex: 1;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .btn-accion.primario {
+    background: var(--primary);
+    color: var(--surface);
+    border-color: var(--primary);
+  }
+
+  /* Oculta elementos de interacción al imprimir */
+  @media print {
+    .btn-volver, .acciones, .selector-card:not(.activa) { display: none !important; }
+    .accordion-panel { max-height: none !important; }
+  }
+
+  /* Accesibilidad: foco visible siempre */
+  button:focus-visible, .checklist-item:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* Respeta preferencia de "menos movimiento" */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="app-header">
+    <h1>Antes de tu procedimiento</h1>
+    <p>Guías sencillas para saber qué esperar. Elige el procedimiento indicado por tu médico.</p>
+  </header>
+
+  <!-- Pantalla 1: selector de fichas. Se llena por JS desde FICHAS -->
+  <div id="selector"></div>
+
+  <!-- Pantalla 2: ficha individual. Se llena por JS al seleccionar -->
+  <div id="ficha-view"></div>
+</div>
+
+<script>
+/* ============================================================
+   1. DATOS DE LAS FICHAS
+   ------------------------------------------------------------
+   Todo el contenido médico vive aquí, en un solo lugar.
+   Para editar texto, agregar un punto, o crear una ficha nueva,
+   solo se toca este objeto — no hace falta entender el resto
+   del código.
+
+   Estructura de cada ficha:
+     id           -> identificador interno (sin espacios)
+     nombre       -> título mostrado
+     subtitulo    -> texto corto bajo el título
+     icono        -> función que devuelve el SVG del ícono
+     molestia     -> nivel del 1 (leve) al 4 (más intenso) + texto
+     duracion     -> texto libre
+     queEs        -> texto libre (HTML simple permitido)
+     preparacion  -> lista de strings (se muestra como checklist)
+     queEsperar   -> texto libre
+     tipos        -> (SOLO en DIU) lista de objetos para el comparador
+     normal       -> texto de "esto es normal después"
+     alarma       -> texto de "cuándo consultar"
+     mitos        -> lista de {mito, real}
+   ============================================================ */
+
+  const FICHAS = {
+
+    papanicolau: {
+      id: 'papanicolau',
+      nombre: 'Papanicolau',
+      subtitulo: 'Citología cervical',
+      icono: iconoPap,
+      molestia: { nivel: 1, texto: 'Leve — un pellizco breve, dura segundos' },
+      duracion: 'Entre 3 y 5 minutos',
+      queEs: 'Es una prueba de rutina para detectar cambios en las células del cuello del útero, antes de que se conviertan en un problema. Se toma una pequeña muestra con un cepillo suave, no es una cirugía ni requiere anestesia.',
+      preparacion: [
+        'Evita relaciones sexuales 48 horas antes',
+        'No uses óvulos, cremas vaginales ni duchas 48 horas antes',
+        'Evita programarlo si estás con tu período (a menos que tu médico indique lo contrario)',
+        'Vejiga vacía antes del examen (orina antes de entrar)'
+      ],
+      queEsperar: 'Te recuestas en la camilla, el médico coloca un espéculo (instrumento que separa suavemente las paredes vaginales para ver el cuello del útero) y toma la muestra con un cepillo. Puede sentirse presión o un pellizco corto, no debería doler.',
+      normal: 'Un manchado leve o sensación de "cólico" muy suave por unas horas es normal.',
+      alarma: 'Si tienes sangrado abundante, dolor fuerte o fiebre en los días siguientes, consulta.',
+      mitos: [
+        { mito: 'Solo se hace si ya tuviste relaciones sexuales.', real: 'Se recomienda a partir de cierta edad o inicio de vida sexual — tu médico te indica cuándo empezar.' },
+        { mito: 'Un resultado anormal significa cáncer.', real: 'La mayoría de las veces son cambios leves y tratables; el resultado guía el siguiente paso, no es un diagnóstico final.' }
+      ]
+    },
+
+    colposcopia: {
+      id: 'colposcopia',
+      nombre: 'Colposcopia',
+      subtitulo: 'Revisión ampliada del cuello uterino',
+      icono: iconoColpo,
+      molestia: { nivel: 2, texto: 'Leve a moderada — similar al Papanicolau, un poco más larga' },
+      duracion: 'Entre 10 y 15 minutos',
+      queEs: 'Es un examen más detallado del cuello del útero, usando un instrumento con aumento (como una lupa especial) para ver de cerca zonas que el Papanicolau marcó como alteradas. Se indica para revisar más de cerca, no significa que ya haya un diagnóstico grave.',
+      preparacion: [
+        'Evita relaciones sexuales 48 horas antes',
+        'No uses óvulos ni cremas vaginales 48 horas antes',
+        'Puedes tomar un analgésico común antes, si tu médico lo indica',
+        'Idealmente, no programarlo durante tu período'
+      ],
+      queEsperar: 'Similar a un Papanicolau: te recuestas en la camilla y se usa un espéculo. El médico aplica un líquido especial (puede arder un poco) que ayuda a resaltar las zonas a observar, y a veces toma una biopsia (una muestra muy pequeña de tejido) si es necesario.',
+      normal: 'Si se tomó biopsia, es normal un manchado oscuro o sangrado leve por varios días.',
+      alarma: 'Sangrado abundante (más que un período normal), dolor intenso o fiebre — consulta de inmediato.',
+      mitos: [
+        { mito: 'Si me hacen colposcopia, tengo cáncer.', real: 'Se indica para revisar más de cerca un resultado alterado; en la mayoría de los casos son cambios menores.' },
+        { mito: 'Duele igual que una cirugía.', real: 'La molestia es similar o apenas mayor a un Papanicolau; no requiere anestesia general.' }
+      ]
+    },
+
+    diu: {
+      id: 'diu',
+      nombre: 'DIU',
+      subtitulo: 'Dispositivo intrauterino',
+      icono: iconoDIU,
+      molestia: { nivel: 3, texto: 'Moderada durante la colocación — tipo cólico, breve' },
+      duracion: 'La colocación toma entre 5 y 10 minutos',
+      queEs: 'Es un método anticonceptivo de larga duración. Es un pequeño dispositivo en forma de "T" que se coloca dentro del útero y previene el embarazo de forma continua, sin que tengas que acordarte de tomarlo a diario.',
+      tipos: [
+        { nombre: 'DIU de cobre', duracion: 'Hasta 10 años', hormonas: 'No contiene', sangrado: 'Puede aumentar un poco el sangrado menstrual' },
+        { nombre: 'DIU hormonal', duracion: '3 a 8 años (según modelo)', hormonas: 'Libera levonorgestrel', sangrado: 'Suele reducir el sangrado con el tiempo' }
+      ],
+      preparacion: [
+        'Idealmente se coloca durante o justo después del período menstrual',
+        'Puedes tomar un analgésico común antes, si tu médico lo indica',
+        'No es necesario venir en ayunas',
+        'Es normal sentir nervios — puedes comentarlo con tu médico antes de empezar'
+      ],
+      queEsperar: 'Se hace en el consultorio, no requiere cirugía. Se coloca un espéculo, se mide el útero y se inserta el DIU con un aplicador delgado. Se puede sentir un cólico fuerte pero breve durante la colocación.',
+      normal: 'Cólicos leves y manchado los primeros días, incluso hasta las primeras semanas, son normales mientras el cuerpo se adapta.',
+      alarma: 'Dolor intenso que no mejora, fiebre, sangrado muy abundante, o si no sientes los hilos del DIU — consulta a tu médico.',
+      mitos: [
+        { mito: 'El DIU se puede perder dentro del cuerpo.', real: 'No puede viajar a otras partes del cuerpo; en casos raros puede moverse de posición, por eso se revisa en controles.' },
+        { mito: 'No sirve para quien no ha tenido hijos.', real: 'Puede usarse también en mujeres que no han sido madres; tu médico evalúa si es la mejor opción para ti.' },
+        { mito: 'Se siente durante las relaciones sexuales.', real: 'Normalmente ni tú ni tu pareja lo sienten; si ocurre, conviene revisar la posición con tu médico.' }
+      ]
+    }
+  };
+
+  /* ============================================================
+     2. ÍCONOS (SVG simples, estilo ilustración — no fotos reales)
+     ============================================================ */
+  function iconoPap() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--accent-soft)"/>
+      <path d="M18 14c0 8 0 16 6 20 6-4 6-12 6-20" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="24" cy="17" r="2.4" fill="var(--accent)"/>
+    </svg>`;
+  }
+  function iconoColpo() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--calm-soft)"/>
+      <circle cx="21" cy="21" r="9" stroke="var(--primary)" stroke-width="2.2"/>
+      <line x1="27.5" y1="27.5" x2="34" y2="34" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="21" cy="21" r="3" fill="var(--accent)"/>
+    </svg>`;
+  }
+  function iconoDIU() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--accent-soft)"/>
+      <path d="M24 14v18M18 15h12M20 32c0 3 1.5 5 4 6 2.5-1 4-3 4-6" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+  }
+  const iconoVolver = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const iconoChevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+  /* ============================================================
+     3. RENDER — construye el HTML a partir de los datos
+     ============================================================ */
+
+  // --- 3.1 Pantalla de selección (tarjetas) ---
+  function renderSelector() {
+    const cont = document.getElementById('selector');
+    cont.innerHTML = Object.values(FICHAS).map(f => `
+      <div class="selector-card" tabindex="0" role="button" data-id="${f.id}" onclick="abrirFicha('${f.id}')" onkeypress="if(event.key==='Enter') abrirFicha('${f.id}')">
+        ${f.icono()}
+        <h3>${f.nombre}</h3>
+        <p>${f.subtitulo}</p>
+      </div>
+    `).join('');
+  }
+
+  // --- 3.2 Medidor de molestia (elemento visual reutilizado) ---
+  // Dibuja una "reglita" de 4 segmentos, cada uno con su propio
+  // color fijo (verde -> ámbar -> coral -> terracota, tipo semáforo
+  // de intensidad), y rellena tantos como indique el nivel de la
+  // ficha (1 = leve ... 4 = más intenso).
+  const COLORES_MOLESTIA = ['var(--calm)', 'var(--amber)', 'var(--accent)', 'var(--alert)'];
+  function renderMedidor(m) {
+    const segmentos = [0, 1, 2, 3].map(i => {
+      const activo = i < m.nivel;
+      const color = activo ? COLORES_MOLESTIA[i] : 'var(--surface)';
+      return `<div class="medidor-segmento" style="background:${color}; border-color:${activo ? COLORES_MOLESTIA[i] : 'var(--line)'}"></div>`;
+    }).join('');
+    return `
+      <div class="medidor">
+        <div class="medidor-title">Nivel de molestia esperado</div>
+        <div class="medidor-regla">${segmentos}</div>
+        <div class="medidor-label">${m.texto}</div>
+        <div class="medidor-nivel">Nivel <b>${m.nivel} de 4</b></div>
+      </div>
+    `;
+  }
+
+  // --- 3.3 Checklist de preparación ---
+  function renderChecklist(items) {
+    return `<div class="checklist">` + items.map((txt, i) => `
+      <div class="checklist-item" tabindex="0" onclick="toggleCheck(this)" onkeypress="if(event.key==='Enter') toggleCheck(this)">
+        <div class="checklist-box"></div>
+        <span class="txt">${txt}</span>
+      </div>
+    `).join('') + `</div>`;
+  }
+  function toggleCheck(el) { el.classList.toggle('checked'); }
+
+  // --- 3.4 Comparador de tipos (usado en DIU) ---
+  function renderComparador(tipos) {
+    return `<div class="comparador">` + tipos.map(t => `
+      <div class="comparador-card">
+        <h4>${t.nombre}</h4>
+        <div class="comparador-row"><b>Duración</b><span>${t.duracion}</span></div>
+        <div class="comparador-row"><b>Hormonas</b><span>${t.hormonas}</span></div>
+        <div class="comparador-row"><b>Sangrado</b><span>${t.sangrado}</span></div>
+      </div>
+    `).join('') + `</div>`;
+  }
+
+  // --- 3.5 Lista de mitos ---
+  function renderMitos(mitos) {
+    return mitos.map(m => `
+      <div class="mito">
+        <div><span class="etiqueta-mito">Mito:</span> ${m.mito}</div>
+        <div><span class="etiqueta-real">Real:</span> ${m.real}</div>
+      </div>
+    `).join('');
+  }
+
+  // --- 3.6 Un ítem de acordeón genérico ---
+  function accordionItem(titulo, contenidoHTML, abiertoPorDefecto = false) {
+    return `
+      <div class="accordion-item ${abiertoPorDefecto ? 'open' : ''}">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">
+          <span>${titulo}</span>
+          <span class="accordion-chevron">${iconoChevron}</span>
+        </button>
+        <div class="accordion-panel" style="${abiertoPorDefecto ? 'max-height:1000px' : ''}">
+          <div class="accordion-panel-inner">${contenidoHTML}</div>
+        </div>
+      </div>
+    `;
+  }
+  function toggleAccordion(btn) {
+    const item = btn.closest('.accordion-item');
+    const panel = item.querySelector('.accordion-panel');
+    const abrir = !item.classList.contains('open');
+    item.classList.toggle('open', abrir);
+    panel.style.maxHeight = abrir ? panel.scrollHeight + 'px' : '0px';
+  }
+
+  // --- 3.7 Vista completa de una ficha ---
+  function renderFicha(f) {
+    let secciones = '';
+
+    secciones += accordionItem('¿Qué es?', `<p>${f.queEs}</p>`, true);
+
+    if (f.preparacion) {
+      secciones += accordionItem('¿Cómo me preparo?', renderChecklist(f.preparacion));
+    }
+
+    if (f.tipos) {
+      secciones += accordionItem('Tipos disponibles', renderComparador(f.tipos));
+    }
+
+    secciones += accordionItem('¿Qué voy a sentir?', `<p>${f.queEsperar}</p>`);
+
+    secciones += accordionItem('Después del procedimiento', `
+      <div class="caja-normal"><b>Es normal:</b> ${f.normal}</div>
+      <div class="caja-alerta"><b>Consulta si:</b> ${f.alarma}</div>
+    `);
+
+    if (f.mitos) {
+      secciones += accordionItem('Mitos comunes', renderMitos(f.mitos));
+    }
+
+    return `
+      <button class="btn-volver" onclick="volverAlSelector()">${iconoVolver} Volver</button>
+      <div class="ficha-header">
+        ${f.icono()}
+        <div>
+          <h2>${f.nombre}</h2>
+          <span class="mono">${f.subtitulo} · ${f.duracion}</span>
+        </div>
+      </div>
+      ${renderMedidor(f.molestia)}
+      ${secciones}
+      <div class="acciones">
+        <button class="btn-accion" onclick="window.print()">Imprimir / Guardar como PDF</button>
+        <button class="btn-accion primario" onclick="volverAlSelector()">Ver otra ficha</button>
+      </div>
+    `;
+  }
+
+  /* ============================================================
+     4. NAVEGACIÓN entre pantallas
+     ============================================================ */
+  function abrirFicha(id) {
+    const f = FICHAS[id];
+    document.getElementById('selector').style.display = 'none';
+    const view = document.getElementById('ficha-view');
+    view.innerHTML = renderFicha(f);
+    view.style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  function volverAlSelector() {
+    document.getElementById('ficha-view').style.display = 'none';
+    document.getElementById('selector').style.display = 'grid';
+    window.scrollTo(0, 0);
+  }
+
+  /* ============================================================
+     5. INICIO
+     ============================================================ */
+  renderSelector();
+</script>
+
+</body>
+</html>
