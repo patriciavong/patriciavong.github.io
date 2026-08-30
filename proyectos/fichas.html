@@ -13,6 +13,11 @@
   conexión a internet. Se puede abrir directo en el navegador,
   mandar por WhatsApp/email, o subir a cualquier hosting simple.
 
+  ESTRUCTURA DE NAVEGACIÓN (3 pantallas):
+    1. Categorías  -> Ginecología / Obstetricia
+    2. Lista       -> fichas dentro de la categoría elegida
+    3. Ficha       -> detalle de un procedimiento
+
   ESTRUCTURA DEL ARCHIVO:
     1. <style>   -> Diseño visual (colores, tipografía, layout)
     2. <body>    -> Esqueleto vacío (todo el contenido se
@@ -20,45 +25,48 @@
     3. <script>  -> a) DATOS de cada ficha (fácil de encontrar
                        y editar, todo junto al inicio del script)
                     b) Funciones que dibujan la app en pantalla
-                    c) Funciones de interacción (acordeón,
-                       comparador, checklist, imprimir)
+                    c) Funciones de interacción y navegación
 
-  PARA EDITAR CONTENIDO (Opción A — edición manual del código):
+  PARA EDITAR CONTENIDO:
     Busca el bloque "DATOS DE LAS FICHAS" más abajo. Cada ficha
     es un objeto con textos simples. No hace falta tocar el CSS
     ni las funciones para cambiar una palabra o agregar un punto
-    a una lista.
+    a una lista. Todo el texto está pensado en lenguaje simple,
+    sin tecnicismos, porque lo lee la paciente.
+
+  NOTA SOBRE EL MEDIDOR DE MOLESTIA:
+    Solo aparece en fichas de Ginecología (tienen el campo
+    "molestia"). Las fichas de Obstetricia no lo incluyen a
+    propósito — el campo "molestia" simplemente se omite y el
+    programa no lo dibuja (ver función renderFicha).
   ============================================================
 -->
 
 <style>
   /* ==========================================================
      TOKENS DE DISEÑO
-     Paleta pensada para transmitir calma clínica, no un
-     hospital frío ni un rosa genérico de "app de mujeres".
      ========================================================== */
   :root {
-    --bg:            #FBF8F6; /* porcelana cálida, fondo general */
-    --surface:       #FFFFFF; /* tarjetas */
-    --ink:           #2E2530; /* texto principal, ciruela casi negro */
-    --ink-soft:      #6B5F6E; /* texto secundario */
-    --primary:       #4A3B52; /* ciruela profundo — encabezados, marca */
-    --accent:        #E8927C; /* coral suave — acciones, resaltes */
-    --accent-soft:   #F6DCD3; /* coral muy claro — fondos de resalte */
-    --calm:          #8FA998; /* verde salvia — "todo normal / tranquilo" */
-    --calm-soft:     #E4ECE4; /* fondo verde suave */
-    --alert:         #C97A62; /* terracota — "cuándo consultar" */
+    --bg:            #FBF8F6;
+    --surface:       #FFFFFF;
+    --ink:           #2E2530;
+    --ink-soft:      #6B5F6E;
+    --primary:       #4A3B52;
+    --accent:        #E8927C;
+    --accent-soft:   #F6DCD3;
+    --calm:          #8FA998;
+    --calm-soft:     #E4ECE4;
+    --alert:         #C97A62;
     --alert-soft:    #FBEAE4;
-    --line:          #E7DFDB; /* bordes sutiles */
-    --amber:         #E3B24A; /* ámbar — paso intermedio del medidor de molestia */
+    --line:          #E7DFDB;
+    --amber:         #E3B24A;
+    --obst:          #7C93B0; /* azul grisáceo suave — identidad de Obstetricia */
+    --obst-soft:     #E7ECF2;
     --radius:        18px;
     --radius-sm:     10px;
     --shadow:        0 4px 20px rgba(74, 59, 82, 0.08);
   }
 
-  /* Tipografía: Fraunces (serif cálida, humana) para títulos,
-     Inter para texto de lectura, IBM Plex Mono para datos/etiquetas
-     cortas (duración, nivel). Se cargan desde Google Fonts. */
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
 
   * { box-sizing: border-box; }
@@ -74,60 +82,86 @@
 
   h1, h2, h3 { font-family: 'Fraunces', serif; margin: 0; }
 
-  .mono {
-    font-family: 'IBM Plex Mono', monospace;
-    letter-spacing: 0.02em;
-  }
+  .mono { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.02em; }
 
-  /* ---------- Layout general ---------- */
   #app {
     max-width: 720px;
     margin: 0 auto;
     padding: 32px 20px 80px;
   }
 
-  header.app-header {
-    text-align: center;
-    margin-bottom: 32px;
-  }
+  header.app-header { text-align: center; margin-bottom: 32px; }
+  header.app-header h1 { font-size: clamp(26px, 5vw, 34px); font-weight: 600; color: var(--primary); }
+  header.app-header p  { color: var(--ink-soft); font-size: 15px; margin-top: 8px; }
 
-  header.app-header h1 {
-    font-size: clamp(26px, 5vw, 34px);
-    font-weight: 600;
-    color: var(--primary);
-  }
-
-  header.app-header p {
-    color: var(--ink-soft);
-    font-size: 15px;
-    margin-top: 8px;
-  }
-
-  /* ---------- Selector de fichas (pantalla inicial) ---------- */
-  #selector {
+  /* ---------- Pantalla 1: Categorías ---------- */
+  #categorias {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 14px;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 480px) { #categorias { grid-template-columns: 1fr; } }
+
+  .categoria-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .categoria-card:hover, .categoria-card:focus-visible { transform: translateY(-3px); outline: none; }
+  .categoria-card.ginecologia:hover { border-color: var(--accent); }
+  .categoria-card.obstetricia:hover { border-color: var(--obst); }
+  .categoria-card svg { width: 56px; height: 56px; margin-bottom: 12px; }
+  .categoria-card h3 { font-size: 19px; color: var(--primary); margin-bottom: 4px; }
+  .categoria-card p { font-size: 13px; color: var(--ink-soft); margin: 0; }
+  .categoria-card .cuenta {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--bg);
+    color: var(--ink-soft);
+  }
+
+  /* ---------- Pantalla 2: Lista de fichas dentro de una categoría ---------- */
+  #lista-fichas { display: none; }
+
+  #lista-fichas .lista-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  #lista-fichas .lista-header svg { width: 36px; height: 36px; }
+  #lista-fichas .lista-header h2 { font-size: 21px; color: var(--primary); }
+
+  #lista-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
   }
 
   .selector-card {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 22px 16px;
+    padding: 20px 14px;
     text-align: center;
     cursor: pointer;
     box-shadow: var(--shadow);
     transition: transform 0.15s ease, border-color 0.15s ease;
   }
-  .selector-card:hover,
-  .selector-card:focus-visible { transform: translateY(-3px); border-color: var(--accent); outline: none; }
+  .selector-card:hover, .selector-card:focus-visible { transform: translateY(-3px); border-color: var(--accent); outline: none; }
+  .selector-card svg { width: 40px; height: 40px; margin-bottom: 8px; }
+  .selector-card h3 { font-size: 15px; color: var(--primary); }
+  .selector-card p  { font-size: 12px; color: var(--ink-soft); margin: 4px 0 0; }
 
-  .selector-card svg { width: 46px; height: 46px; margin-bottom: 10px; }
-  .selector-card h3 { font-size: 17px; color: var(--primary); }
-  .selector-card p  { font-size: 13px; color: var(--ink-soft); margin: 4px 0 0; }
-
-  /* ---------- Vista de ficha individual ---------- */
+  /* ---------- Pantalla 3: Ficha individual ---------- */
   #ficha-view { display: none; }
 
   .btn-volver {
@@ -155,11 +189,7 @@
   .ficha-header h2 { font-size: 24px; color: var(--primary); }
   .ficha-header span { font-size: 13px; color: var(--ink-soft); }
 
-  /* ---------- Medidor de molestia (elemento distintivo) ----------
-     Barra horizontal con 4 tramos + una carita que indica el
-     nivel de esta ficha en particular. Es el mismo componente
-     visual en las 3 fichas, para que la paciente aprenda a
-     leerlo una vez y lo reconozca siempre. */
+  /* ---------- Medidor de molestia (solo Ginecología) ---------- */
   .medidor {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -175,37 +205,18 @@
     color: var(--ink-soft);
     margin-bottom: 10px;
   }
-  /* Medidor tipo "reglita": 4 segmentos, se rellenan de izquierda
-     a derecha según el nivel (1 a 4). Nada de degradados — solo
-     bloques con borde, mucho más simple y seguro al imprimir. */
-  .medidor-regla {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 8px;
-  }
+  .medidor-regla { display: flex; gap: 6px; margin-bottom: 8px; }
   .medidor-segmento {
     flex: 1;
     height: 12px;
     border-radius: 4px;
     border: 2px solid var(--line);
     background: var(--surface);
-    /* Fuerza a que el color de fondo SÍ se imprima (por defecto
-       el navegador lo omite al exportar a PDF). */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .medidor-label {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--primary);
-  }
-  /* Etiqueta numérica de respaldo (ej. "Nivel 2 de 4"), siempre
-     visible en texto plano además de la reglita. */
-  .medidor-nivel {
-    font-size: 12px;
-    color: var(--ink-soft);
-    margin-top: 2px;
-  }
+  .medidor-label { font-size: 14px; font-weight: 500; color: var(--primary); }
+  .medidor-nivel { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
   .medidor-nivel b { color: var(--primary); }
 
   /* ---------- Acordeón ---------- */
@@ -233,27 +244,15 @@
     cursor: pointer;
     text-align: left;
   }
-  .accordion-chevron {
-    flex-shrink: 0;
-    transition: transform 0.2s ease;
-    color: var(--accent);
-  }
+  .accordion-chevron { flex-shrink: 0; transition: transform 0.2s ease; color: var(--accent); }
   .accordion-item.open .accordion-chevron { transform: rotate(180deg); }
 
-  .accordion-panel {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.25s ease;
-  }
-  .accordion-panel-inner {
-    padding: 0 18px 18px;
-    font-size: 15px;
-    color: var(--ink);
-  }
+  .accordion-panel { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+  .accordion-panel-inner { padding: 0 18px 18px; font-size: 15px; color: var(--ink); }
   .accordion-panel-inner ul { margin: 6px 0; padding-left: 20px; }
   .accordion-panel-inner li { margin-bottom: 4px; }
 
-  /* ---------- Checklist interactivo (sección "preparación") ---------- */
+  /* ---------- Checklist interactivo ---------- */
   .checklist-item {
     display: flex;
     align-items: flex-start;
@@ -279,9 +278,6 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Marca de check (✓) que aparece dentro de la casilla al
-     seleccionarla. El texto ya NO se tacha — solo cambia el
-     estado de la casilla. */
   .checklist-item.checked .checklist-box::after {
     content: "✓";
     color: var(--surface);
@@ -290,108 +286,44 @@
     line-height: 1;
   }
 
-  /* ---------- Comparador de tipos (usado en la ficha de DIU) ---------- */
-  .comparador {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin: 6px 0 4px;
-  }
+  /* ---------- Comparador de tipos (DIU) ---------- */
+  .comparador { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 4px; }
   @media (max-width: 480px) { .comparador { grid-template-columns: 1fr; } }
-
-  .comparador-card {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 14px;
-    background: var(--bg);
-  }
-  .comparador-card h4 {
-    font-family: 'Fraunces', serif;
-    font-size: 15px;
-    color: var(--primary);
-    margin-bottom: 8px;
-  }
-  .comparador-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    padding: 5px 0;
-    border-top: 1px dashed var(--line);
-  }
+  .comparador-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; background: var(--bg); }
+  .comparador-card h4 { font-family: 'Fraunces', serif; font-size: 15px; color: var(--primary); margin-bottom: 8px; }
+  .comparador-row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-top: 1px dashed var(--line); }
   .comparador-row:first-of-type { border-top: none; }
   .comparador-row b { color: var(--ink-soft); font-weight: 500; }
 
-  /* ---------- Caja de "cuándo consultar" (alerta) ---------- */
-  .caja-alerta {
-    background: var(--alert-soft);
-    border-left: 4px solid var(--alert);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
-    font-size: 14px;
-    margin-top: 8px;
-  }
+  /* ---------- Cajas normal / alerta ---------- */
+  .caja-alerta { background: var(--alert-soft); border-left: 4px solid var(--alert); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; margin-top: 8px; }
   .caja-alerta b { color: var(--alert); }
-
-  .caja-normal {
-    background: var(--calm-soft);
-    border-left: 4px solid var(--calm);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
-    font-size: 14px;
-    margin-top: 8px;
-  }
+  .caja-normal { background: var(--calm-soft); border-left: 4px solid var(--calm); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; margin-top: 8px; }
   .caja-normal b { color: var(--primary); }
 
   /* ---------- Mitos ---------- */
-  .mito {
-    padding: 10px 0;
-    border-top: 1px dashed var(--line);
-    font-size: 14px;
-  }
+  .mito { padding: 10px 0; border-top: 1px dashed var(--line); font-size: 14px; }
   .mito:first-of-type { border-top: none; }
   .mito .etiqueta-mito { color: var(--alert); font-weight: 600; }
   .mito .etiqueta-real { color: var(--calm); font-weight: 600; }
 
-  /* ---------- Botones de acción al pie de la ficha ---------- */
-  .acciones {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-  }
+  /* ---------- Acciones al pie ---------- */
+  .acciones { display: flex; gap: 10px; margin-top: 20px; }
   .btn-accion {
-    flex: 1;
-    padding: 12px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--line);
-    background: var(--surface);
-    color: var(--primary);
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
+    flex: 1; padding: 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--line); background: var(--surface);
+    color: var(--primary); font-family: 'Inter', sans-serif;
+    font-size: 14px; font-weight: 500; cursor: pointer;
   }
-  .btn-accion.primario {
-    background: var(--primary);
-    color: var(--surface);
-    border-color: var(--primary);
-  }
+  .btn-accion.primario { background: var(--primary); color: var(--surface); border-color: var(--primary); }
 
-  /* Oculta elementos de interacción al imprimir */
   @media print {
-    .btn-volver, .acciones, .selector-card:not(.activa) { display: none !important; }
+    .btn-volver, .acciones { display: none !important; }
     .accordion-panel { max-height: none !important; }
   }
 
-  /* Accesibilidad: foco visible siempre */
-  button:focus-visible, .checklist-item:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  /* Respeta preferencia de "menos movimiento" */
-  @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
-  }
+  button:focus-visible, .checklist-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -399,47 +331,59 @@
 <div id="app">
   <header class="app-header">
     <h1>Antes de tu procedimiento</h1>
-    <p>Guías sencillas para saber qué esperar. Elige el procedimiento indicado por tu médico.</p>
+    <p>Guías sencillas para saber qué esperar. Elige la sección y luego el procedimiento indicado por tu médico.</p>
   </header>
 
-  <!-- Pantalla 1: selector de fichas. Se llena por JS desde FICHAS -->
-  <div id="selector"></div>
+  <!-- Pantalla 1: categorías -->
+  <div id="categorias"></div>
 
-  <!-- Pantalla 2: ficha individual. Se llena por JS al seleccionar -->
+  <!-- Pantalla 2: lista de fichas de una categoría -->
+  <div id="lista-fichas">
+    <div class="lista-header" id="lista-header"></div>
+    <button class="btn-volver" onclick="volverACategorias()" style="margin-bottom:16px;"></button>
+    <div id="lista-grid"></div>
+  </div>
+
+  <!-- Pantalla 3: ficha individual -->
   <div id="ficha-view"></div>
 </div>
 
 <script>
 /* ============================================================
-   1. DATOS DE LAS FICHAS
-   ------------------------------------------------------------
-   Todo el contenido médico vive aquí, en un solo lugar.
-   Para editar texto, agregar un punto, o crear una ficha nueva,
-   solo se toca este objeto — no hace falta entender el resto
-   del código.
-
-   Estructura de cada ficha:
-     id           -> identificador interno (sin espacios)
-     nombre       -> título mostrado
-     subtitulo    -> texto corto bajo el título
-     icono        -> función que devuelve el SVG del ícono
-     molestia     -> nivel del 1 (leve) al 4 (más intenso) + texto
-     duracion     -> texto libre
-     queEs        -> texto libre (HTML simple permitido)
-     preparacion  -> lista de strings (se muestra como checklist)
-     queEsperar   -> texto libre
-     tipos        -> (SOLO en DIU) lista de objetos para el comparador
-     normal       -> texto de "esto es normal después"
-     alarma       -> texto de "cuándo consultar"
-     mitos        -> lista de {mito, real}
+   1. DATOS DE LAS CATEGORÍAS
    ============================================================ */
+  const CATEGORIAS = {
+    ginecologia: {
+      id: 'ginecologia',
+      nombre: 'Ginecología',
+      subtitulo: 'Revisiones y procedimientos ginecológicos',
+      icono: () => iconoCategoriaGineco(),
+      claseCss: 'ginecologia'
+    },
+    obstetricia: {
+      id: 'obstetricia',
+      nombre: 'Obstetricia',
+      subtitulo: 'Control del embarazo y parto',
+      icono: () => iconoCategoriaObste(),
+      claseCss: 'obstetricia'
+    }
+  };
 
+/* ============================================================
+   2. DATOS DE LAS FICHAS
+   ------------------------------------------------------------
+   Cada ficha pertenece a una categoria: 'ginecologia' u
+   'obstetricia'. El campo "molestia" es OPCIONAL — si no está
+   presente, el medidor simplemente no se dibuja (así excluimos
+   el medidor de todas las fichas de Obstetricia).
+   ============================================================ */
   const FICHAS = {
 
+    /* ---------------------- GINECOLOGÍA ---------------------- */
+
     papanicolau: {
-      id: 'papanicolau',
-      nombre: 'Papanicolau',
-      subtitulo: 'Citología cervical',
+      id: 'papanicolau', categoria: 'ginecologia',
+      nombre: 'Papanicolau', subtitulo: 'Citología cervical',
       icono: iconoPap,
       molestia: { nivel: 1, texto: 'Leve — un pellizco breve, dura segundos' },
       duracion: 'Entre 3 y 5 minutos',
@@ -460,9 +404,8 @@
     },
 
     colposcopia: {
-      id: 'colposcopia',
-      nombre: 'Colposcopia',
-      subtitulo: 'Revisión ampliada del cuello uterino',
+      id: 'colposcopia', categoria: 'ginecologia',
+      nombre: 'Colposcopia', subtitulo: 'Revisión ampliada del cuello uterino',
       icono: iconoColpo,
       molestia: { nivel: 2, texto: 'Leve a moderada — similar al Papanicolau, un poco más larga' },
       duracion: 'Entre 10 y 15 minutos',
@@ -483,9 +426,8 @@
     },
 
     diu: {
-      id: 'diu',
-      nombre: 'DIU',
-      subtitulo: 'Dispositivo intrauterino',
+      id: 'diu', categoria: 'ginecologia',
+      nombre: 'DIU', subtitulo: 'Colocación del dispositivo intrauterino',
       icono: iconoDIU,
       molestia: { nivel: 3, texto: 'Moderada durante la colocación — tipo cólico, breve' },
       duracion: 'La colocación toma entre 5 y 10 minutos',
@@ -508,12 +450,404 @@
         { mito: 'No sirve para quien no ha tenido hijos.', real: 'Puede usarse también en mujeres que no han sido madres; tu médico evalúa si es la mejor opción para ti.' },
         { mito: 'Se siente durante las relaciones sexuales.', real: 'Normalmente ni tú ni tu pareja lo sienten; si ocurre, conviene revisar la posición con tu médico.' }
       ]
+    },
+
+    extraccionDIU: {
+      id: 'extraccionDIU', categoria: 'ginecologia',
+      nombre: 'Extracción del DIU', subtitulo: 'Retiro del dispositivo intrauterino',
+      icono: iconoDIU,
+      molestia: { nivel: 2, texto: 'Leve a moderada — un cólico breve al momento de retirarlo' },
+      duracion: 'Entre 2 y 5 minutos',
+      queEs: 'Es el procedimiento para sacar el DIU cuando ya cumplió su tiempo de uso, cuando quieres buscar un embarazo, o si decides cambiar de método anticonceptivo.',
+      preparacion: [
+        'No es necesaria ninguna preparación especial',
+        'Puedes tomar un analgésico común antes, si sientes que te ayuda',
+        'Coméntale a tu médico si buscas embarazo pronto, para planificar el momento'
+      ],
+      queEsperar: 'Se coloca un espéculo y el médico jala suavemente los hilos del DIU para retirarlo. Suele sentirse un cólico breve, parecido al de la colocación pero más corto.',
+      normal: 'Un cólico leve y un poco de manchado por el resto del día son normales.',
+      alarma: 'Dolor intenso, sangrado abundante o fiebre en los días siguientes — consulta a tu médico.',
+      mitos: [
+        { mito: 'Si me lo quito, no puedo quedar embarazada de inmediato.', real: 'La fertilidad suele regresar rápido después de retirar el DIU, tanto de cobre como hormonal.' }
+      ]
+    },
+
+    ecoTransvaginal: {
+      id: 'ecoTransvaginal', categoria: 'ginecologia',
+      nombre: 'Ecografía transvaginal', subtitulo: 'Ecografía ginecológica interna',
+      icono: iconoLupa,
+      molestia: { nivel: 1, texto: 'Leve — sensación de presión, no debería doler' },
+      duracion: 'Entre 5 y 10 minutos',
+      queEs: 'Es una ecografía que se hace con un transductor delgado (un instrumento con forma de varita, cubierto con un preservativo o funda) que se introduce en la vagina. Permite ver el útero y los ovarios con mucha más claridad que una ecografía por fuera del abdomen.',
+      preparacion: [
+        'Normalmente NO necesitas vejiga llena (a diferencia de la ecografía abdominal)',
+        'Puedes ir al baño antes del examen',
+        'No requiere ayuno'
+      ],
+      queEsperar: 'Te recuestas en la camilla y el médico introduce el transductor suavemente. Se siente presión, similar a un examen ginecológico de rutina, pero no debería ser doloroso.',
+      normal: 'No suele haber ninguna molestia después; puede quedar un poco de lubricante como único rastro.',
+      alarma: 'Si sientes dolor fuerte durante o después del examen, coméntaselo a tu médico de inmediato.',
+      mitos: [
+        { mito: 'Es lo mismo que una ecografía normal, solo que "por dentro".', real: 'Se usa un instrumento distinto, más delgado, y se ve con mucho más detalle el útero y los ovarios.' }
+      ]
+    },
+
+    biopsiaEndometrial: {
+      id: 'biopsiaEndometrial', categoria: 'ginecologia',
+      nombre: 'Biopsia endometrial', subtitulo: 'Muestra del revestimiento del útero',
+      icono: iconoAguja,
+      molestia: { nivel: 3, texto: 'Moderada — parecido a un cólico menstrual fuerte, breve' },
+      duracion: 'Entre 5 y 15 minutos',
+      queEs: 'Es tomar una pequeña muestra del tejido que recubre por dentro el útero (endometrio), generalmente para estudiar la causa de sangrados irregulares o abundantes.',
+      preparacion: [
+        'Puedes tomar un analgésico común 30-60 minutos antes, si tu médico lo indica',
+        'Evita relaciones sexuales el día anterior',
+        'No es necesario venir en ayunas'
+      ],
+      queEsperar: 'Se coloca un espéculo y el médico introduce un instrumento muy delgado a través del cuello del útero para tomar la muestra. Es común sentir un cólico fuerte durante unos segundos.',
+      normal: 'Cólicos leves y manchado por 1 a 2 días son normales.',
+      alarma: 'Sangrado abundante, fiebre o dolor que no mejora con analgésicos comunes — consulta a tu médico.',
+      mitos: []
+    },
+
+    histeroscopia: {
+      id: 'histeroscopia', categoria: 'ginecologia',
+      nombre: 'Histeroscopia', subtitulo: 'Revisión del interior del útero con cámara',
+      icono: iconoCamara,
+      molestia: { nivel: 2, texto: 'Leve a moderada — tipo cólico menstrual' },
+      duracion: 'Entre 10 y 30 minutos, según si es solo revisión o también tratamiento',
+      queEs: 'Es un examen donde se introduce una cámara muy delgada a través de la vagina y el cuello del útero, para ver directamente el interior del útero en una pantalla. Sirve para investigar sangrados irregulares, pólipos, miomas, o dificultades para embarazarse.',
+      preparacion: [
+        'Puede indicarse un analgésico antes, según lo converses con tu médico',
+        'Generalmente se programa en los primeros días después del período',
+        'Evita relaciones sexuales el día anterior si te lo indican'
+      ],
+      queEsperar: 'Se coloca un espéculo y se introduce la cámara con un poco de líquido o gas para poder ver mejor el interior del útero. Puede sentirse presión y cólicos, similares a los del período.',
+      normal: 'Cólicos leves y un poco de manchado por 1 a 2 días son normales.',
+      alarma: 'Dolor intenso, fiebre o sangrado abundante — consulta a tu médico.',
+      mitos: []
+    },
+
+    legrado: {
+      id: 'legrado', categoria: 'ginecologia',
+      nombre: 'Legrado', subtitulo: 'Limpieza del interior del útero (curetaje)',
+      icono: iconoTijeras,
+      molestia: { nivel: 2, texto: 'Se hace con sedación o anestesia — molestia principal es después, tipo cólico' },
+      duracion: 'El procedimiento en sí dura entre 15 y 30 minutos',
+      queEs: 'Es un procedimiento para retirar tejido del interior del útero — por ejemplo, después de un aborto espontáneo incompleto, o para estudiar una causa de sangrado. Se hace bajo sedación o anestesia, por lo que no se siente dolor durante el procedimiento.',
+      preparacion: [
+        'Generalmente se requiere ayuno de varias horas antes (te lo confirmará tu médico)',
+        'Necesitas que alguien te acompañe a casa después, porque estarás bajo efectos de sedación',
+        'Sigue las indicaciones específicas de tu médico o del hospital'
+      ],
+      queEsperar: 'Estarás dormida o sedada durante el procedimiento, así que no sentirás lo que ocurre. El médico retira con cuidado el tejido del interior del útero. Al despertar, es normal sentir cólicos, como los de un período fuerte.',
+      normal: 'Cólicos moderados y sangrado tipo período por varios días son normales, así como somnolencia por el efecto de la sedación.',
+      alarma: 'Fiebre, sangrado muy abundante (empapar una toalla por hora), o dolor que no mejora con los analgésicos indicados — consulta de inmediato.',
+      mitos: [
+        { mito: 'Afecta la posibilidad de tener hijos en el futuro.', real: 'Un legrado bien realizado normalmente no afecta la fertilidad futura.' }
+      ]
+    },
+
+    implante: {
+      id: 'implante', categoria: 'ginecologia',
+      nombre: 'Implante subdérmico', subtitulo: 'Colocación del anticonceptivo en el brazo',
+      icono: iconoChip,
+      molestia: { nivel: 2, texto: 'Leve — se usa anestesia local, molestia principal es la presión' },
+      duracion: 'La colocación toma unos 5 minutos',
+      queEs: 'Es una pequeña varilla flexible, del tamaño de un fósforo, que se coloca debajo de la piel del brazo. Libera una hormona de forma constante y previene el embarazo por varios años, sin que tengas que acordarte a diario.',
+      preparacion: [
+        'No requiere ayuno',
+        'Usa una manga corta o fácil de subir el día de la cita',
+        'Coméntale a tu médico si tienes alergia a anestésicos locales'
+      ],
+      queEsperar: 'Se aplica anestesia local en la zona interna del brazo, y luego se inserta el implante con un aplicador especial, debajo de la piel (no requiere puntos ni cortes grandes). Puedes sentir presión, pero no dolor fuerte.',
+      normal: 'Un pequeño moretón o sensibilidad en la zona por algunos días es normal.',
+      alarma: 'Enrojecimiento fuerte, salida de líquido, fiebre, o si no puedes palpar el implante bajo la piel — consulta a tu médico.',
+      mitos: [
+        { mito: 'Se puede mover por todo el brazo o el cuerpo.', real: 'Queda fijo en el lugar donde se coloca; puede palparse ahí durante todo el tiempo que lo tengas.' }
+      ]
+    },
+
+    /* ---------------------- OBSTETRICIA ---------------------- */
+    /* Ninguna ficha de esta categoría incluye el campo "molestia"
+       a propósito — por eso no aparece el medidor en ninguna. */
+
+    controlPrenatal: {
+      id: 'controlPrenatal', categoria: 'obstetricia',
+      nombre: 'Primera consulta prenatal', subtitulo: 'Inicio del control de tu embarazo',
+      icono: iconoCalendario,
+      duracion: 'Entre 30 y 45 minutos, más larga que las siguientes citas',
+      queEs: 'Es la primera consulta después de confirmar el embarazo. Tu médico revisa tu historia de salud completa, calcula la fecha probable de parto, y pide los primeros exámenes de laboratorio y ecografías para asegurarse de que todo va bien desde el inicio.',
+      preparacion: [
+        'Lleva la fecha de tu última menstruación',
+        'Lleva cualquier estudio o análisis que ya te hayas hecho',
+        'Anota tus antecedentes médicos y los de tu familia, y las dudas que quieras resolver'
+      ],
+      queEsperar: 'Se conversa sobre tu salud, se revisan tus signos vitales y peso, y generalmente se solicitan análisis de sangre, orina, y una ecografía inicial. No suele incluir un examen físico invasivo en esta primera cita, salvo que tu médico lo considere necesario.',
+      normal: 'Es normal sentir nervios o muchas preguntas en esta primera cita — para eso está.',
+      alarma: 'Si tienes sangrado, dolor fuerte o síntomas que te preocupan antes de esta cita, no esperes: consulta antes.',
+      mitos: []
+    },
+
+    ecoObstetrica: {
+      id: 'ecoObstetrica', categoria: 'obstetricia',
+      nombre: 'Ecografía obstétrica', subtitulo: 'Control de rutina del embarazo',
+      icono: iconoLupa,
+      duracion: 'Entre 10 y 20 minutos',
+      queEs: 'Es el examen que permite ver al bebé dentro del útero usando ondas de sonido (no rayos X, no tiene radiación). Sirve para revisar el crecimiento, los latidos del corazón, la posición, y la cantidad de líquido amniótico.',
+      preparacion: [
+        'En etapas tempranas del embarazo, puede pedirse que vayas con la vejiga llena (toma agua antes y no orines)',
+        'Más adelante en el embarazo, generalmente no es necesaria vejiga llena',
+        'Confirma con tu médico si aplica alguna indicación especial para tu caso'
+      ],
+      queEsperar: 'Te recuestas boca arriba, se aplica un gel tibio sobre el abdomen y se desliza un transductor para ver las imágenes en pantalla. No duele en absoluto, solo puede sentirse un poco de presión.',
+      normal: 'No genera ninguna molestia posterior; puedes retomar tus actividades normales de inmediato.',
+      alarma: 'No aplica una alarma específica del examen en sí — pero si tu médico detecta algo que requiere seguimiento, te lo explicará en el momento.',
+      mitos: [
+        { mito: 'Hacerse muchas ecografías es peligroso para el bebé.', real: 'La ecografía no usa radiación; es segura y se repite las veces que el control del embarazo lo requiera.' }
+      ]
+    },
+
+    ecoMorfologica: {
+      id: 'ecoMorfologica', categoria: 'obstetricia',
+      nombre: 'Ecografía morfológica', subtitulo: 'Revisión detallada, alrededor de la semana 20',
+      icono: iconoLupa,
+      duracion: 'Entre 30 y 45 minutos, más larga que una ecografía de rutina',
+      queEs: 'Es una ecografía mucho más detallada que se hace generalmente entre las semanas 18 y 22 del embarazo. Revisa uno por uno los órganos y estructuras del bebé (corazón, cerebro, columna, riñones, extremidades) para confirmar que se estén formando bien.',
+      preparacion: [
+        'No suele requerir preparación especial ni ayuno',
+        'Considera ir acompañada, ya que suele ser un momento emotivo (a veces se puede ver el sexo del bebé, si tú lo deseas)',
+        'Puede tomar tiempo, así que ve con calma en tu agenda'
+      ],
+      queEsperar: 'Similar a una ecografía normal (gel + transductor sobre el abdomen), pero el médico revisa con más detenimiento cada parte del cuerpo del bebé, tomando varias medidas y fotos.',
+      normal: 'No genera molestia; a veces el bebé se mueve o cambia de posición y el examen toma un poco más de tiempo mientras se logran ver todas las estructuras.',
+      alarma: 'No aplica una alarma propia del examen — si se detecta algo que requiere más estudios, tu médico te explicará los siguientes pasos con calma.',
+      mitos: []
+    },
+
+    tamizaje1erTrimestre: {
+      id: 'tamizaje1erTrimestre', categoria: 'obstetricia',
+      nombre: 'Tamizaje del primer trimestre', subtitulo: 'Translucencia nucal y análisis de sangre',
+      icono: iconoCalendario,
+      duracion: 'La ecografía toma unos 15-20 minutos; el análisis de sangre, unos minutos más',
+      queEs: 'Es un estudio combinado (una ecografía especial + un análisis de sangre) que se hace entre las semanas 11 y 14 del embarazo. Calcula el riesgo de que el bebé tenga ciertas condiciones genéticas, como el síndrome de Down. No es un diagnóstico definitivo, es una estimación de riesgo.',
+      preparacion: [
+        'No requiere ayuno para el análisis de sangre en la mayoría de los casos',
+        'Se debe hacer dentro de una ventana de fechas específica (semanas 11 a 14), así que es importante no atrasarlo',
+        'Lleva contigo la fecha exacta de tu última menstruación o de la ecografía inicial'
+      ],
+      queEsperar: 'La ecografía mide un espacio en la parte de atrás del cuello del bebé (translucencia nucal); el análisis de sangre mide ciertas sustancias. Ambos resultados se combinan con tu edad para dar un resultado de riesgo (por ejemplo, "riesgo bajo" o "riesgo a evaluar más").',
+      normal: 'No genera ninguna molestia física relevante, salvo la normal de una toma de sangre.',
+      alarma: 'Si el resultado indica un riesgo mayor, tu médico te explicará las opciones de estudios adicionales — no significa que el bebé tenga la condición, solo que conviene revisar más de cerca.',
+      mitos: [
+        { mito: 'Un resultado de "riesgo alto" significa que el bebé tiene el síndrome.', real: 'Es una estimación de probabilidad, no un diagnóstico; se puede confirmar o descartar con estudios adicionales si tu médico lo considera necesario.' }
+      ]
+    },
+
+    tamizajeDiabetes: {
+      id: 'tamizajeDiabetes', categoria: 'obstetricia',
+      nombre: 'Tamizaje de diabetes gestacional', subtitulo: 'Curva de tolerancia a la glucosa',
+      icono: iconoAguja,
+      duracion: 'Entre 1 y 3 horas, según el tipo de prueba que indique tu médico',
+      queEs: 'Es un análisis de sangre que revisa cómo tu cuerpo procesa el azúcar durante el embarazo. Se hace generalmente entre las semanas 24 y 28, y sirve para detectar la diabetes gestacional a tiempo, ya que a veces no da ningún síntoma.',
+      preparacion: [
+        'Tu médico te indicará si necesitas ayuno antes (depende del tipo de prueba)',
+        'Lleva algo para comer después del estudio, ya que puede tomar varias horas',
+        'Ve cómoda, ya que estarás sentada esperando entre tomas de sangre'
+      ],
+      queEsperar: 'Se toma una muestra de sangre en ayunas, luego tomas un líquido azucarado, y se te toman nuevas muestras de sangre cada cierto tiempo (por ejemplo, cada hora) para ver cómo baja tu nivel de azúcar.',
+      normal: 'Es normal sentir un poco de mareo o dulzor intenso justo después de tomar el líquido; suele pasar rápido.',
+      alarma: 'Si te sientes muy mal (mareo fuerte, vómitos intensos) durante la prueba, avisa de inmediato al personal que te está atendiendo.',
+      mitos: [
+        { mito: 'Si me sale alto, significa que mi bebé nacerá con diabetes.', real: 'La diabetes gestacional se controla con alimentación, actividad física y a veces medicamento; con buen control, el embarazo puede seguir su curso con normalidad.' }
+      ]
+    },
+
+    vacunasEmbarazo: {
+      id: 'vacunasEmbarazo', categoria: 'obstetricia',
+      nombre: 'Vacunas durante el embarazo', subtitulo: 'Protección para ti y tu bebé',
+      icono: iconoAguja,
+      duracion: 'Cada aplicación toma solo unos minutos',
+      queEs: 'Algunas vacunas se recomiendan durante el embarazo porque protegen tanto a la mamá como al bebé — por ejemplo, la vacuna contra la tos ferina (Tdap) y la de la influenza. No todas las vacunas son seguras en el embarazo, por eso siempre se aplican bajo indicación de tu médico.',
+      preparacion: [
+        'Comenta a tu médico si tienes alergias conocidas a alguna vacuna',
+        'No necesitas ayuno ni preparación especial',
+        'Pregunta en qué semana del embarazo conviene aplicarte cada vacuna, ya que varía según el tipo'
+      ],
+      queEsperar: 'Es una inyección normal, generalmente en el brazo. Puede sentirse un pinchazo breve y algo de sensibilidad en la zona después.',
+      normal: 'Dolor leve en el brazo, y a veces cansancio o febrícula leve por uno o dos días, son reacciones normales y esperadas.',
+      alarma: 'Fiebre alta, hinchazón fuerte en el brazo, o cualquier reacción alérgica (dificultad para respirar, hinchazón de cara o garganta) — busca atención médica de inmediato.',
+      mitos: [
+        { mito: 'Ninguna vacuna es segura durante el embarazo.', real: 'Varias vacunas están recomendadas específicamente para embarazadas porque protegen al bebé antes y después de nacer.' }
+      ]
+    },
+
+    monitoreoFetal: {
+      id: 'monitoreoFetal', categoria: 'obstetricia',
+      nombre: 'Monitoreo fetal (NST)', subtitulo: 'Registro de los latidos del bebé',
+      icono: iconoLatido,
+      duracion: 'Entre 20 y 40 minutos',
+      queEs: 'Es un estudio no invasivo que registra los latidos del corazón del bebé y las contracciones del útero, generalmente en las últimas semanas del embarazo. Ayuda a confirmar que el bebé está recibiendo bien el oxígeno y respondiendo con normalidad.',
+      preparacion: [
+        'Ve al baño antes, ya que estarás recostada un buen rato',
+        'Lleva algo para comer un rato antes — un bebé "activo" tras comer facilita el estudio',
+        'Usa ropa cómoda que permita descubrir el abdomen'
+      ],
+      queEsperar: 'Te recuestas o sientas cómodamente, y se colocan dos cinturones anchos sobre el abdomen con sensores — uno registra los latidos del bebé y otro las contracciones. No duele ni causa ninguna molestia, solo hay que quedarse quieta un rato.',
+      normal: 'Es normal que el bebé se mueva, se "esconda" un rato de los sensores, o que el estudio tome más tiempo de lo esperado mientras se logra un buen registro.',
+      alarma: 'No aplica una alarma propia del estudio — si el registro muestra algo que requiere atención, el personal médico actuará en el momento.',
+      mitos: []
+    },
+
+    partoVaginal: {
+      id: 'partoVaginal', categoria: 'obstetricia',
+      nombre: 'Parto vaginal', subtitulo: 'Qué esperar en el trabajo de parto',
+      icono: iconoBebe,
+      duracion: 'Muy variable — puede durar varias horas, distinto en cada embarazo',
+      queEs: 'Es la forma más común en que nace un bebé, a través del canal vaginal. El cuerpo pasa por varias etapas: el trabajo de parto (contracciones que van abriendo el cuello del útero), el nacimiento del bebé, y la salida de la placenta.',
+      preparacion: [
+        'Conversa con tu médico sobre tu plan de parto y qué esperar según tu caso',
+        'Ten lista tu maleta para el hospital con anticipación',
+        'Aprende a reconocer las señales de que el trabajo de parto ha comenzado (contracciones regulares, ruptura de la fuente, entre otras)'
+      ],
+      queEsperar: 'Las contracciones se vuelven más frecuentes e intensas con el tiempo. El equipo médico va revisando cómo avanza la dilatación. Cuando el cuello del útero está completamente abierto, comienza la etapa de pujar hasta el nacimiento del bebé.',
+      normal: 'Dolor tipo contracción que aumenta con el tiempo es parte esperada del proceso; existen opciones para el manejo del dolor que puedes conversar con tu médico.',
+      alarma: 'Sangrado abundante fuera de lo esperado, fiebre, o si notas que el bebé se mueve mucho menos de lo usual antes de llegar al hospital — consulta de inmediato.',
+      mitos: [
+        { mito: 'Si tuviste una cesárea antes, nunca puedes tener parto vaginal después.', real: 'En muchos casos sí es posible (se le llama parto vaginal después de cesárea); depende de tu situación particular, coméntalo con tu médico.' }
+      ]
+    },
+
+    induccionParto: {
+      id: 'induccionParto', categoria: 'obstetricia',
+      nombre: 'Inducción del parto', subtitulo: 'Cuando se ayuda a iniciar el trabajo de parto',
+      icono: iconoBebe,
+      duracion: 'Puede tomar varias horas, incluso más de un día en algunos casos',
+      queEs: 'Es cuando se usan medicamentos o técnicas para iniciar las contracciones del parto, en vez de esperar a que comiencen solas. Se indica por razones médicas — por ejemplo, si el embarazo se pasó de la fecha esperada, o si hay alguna condición que conviene resolver pronto.',
+      preparacion: [
+        'Se realiza en el hospital, bajo supervisión constante',
+        'Coméntale a tu médico tus dudas sobre por qué se indica en tu caso particular',
+        'Ten lista tu maleta para el hospital, ya que probablemente te quedarás internada'
+      ],
+      queEsperar: 'Puede iniciarse con un medicamento, un dispositivo para madurar el cuello del útero, o rompiendo la fuente, según tu caso. Una vez que comienzan las contracciones, el proceso continúa de forma similar a un trabajo de parto que inicia por sí solo.',
+      normal: 'Contracciones que se sienten similares a un trabajo de parto natural, solo que iniciadas con ayuda médica.',
+      alarma: 'Cualquier molestia fuera de lo que el equipo médico te indique como esperado, coméntala de inmediato al personal que te está monitoreando.',
+      mitos: [
+        { mito: 'La inducción siempre termina en cesárea.', real: 'Muchas inducciones terminan en parto vaginal exitoso; depende de cómo evolucione cada caso particular.' }
+      ]
+    },
+
+    cesarea: {
+      id: 'cesarea', categoria: 'obstetricia',
+      nombre: 'Cesárea', subtitulo: 'Nacimiento por cirugía',
+      icono: iconoBebe,
+      duracion: 'La cirugía en sí toma entre 30 y 60 minutos',
+      queEs: 'Es una cirugía donde el bebé nace a través de un corte en el abdomen y el útero, en vez de por el canal vaginal. Puede planearse con anticipación (por ejemplo, si el bebé viene de nalgas) o decidirse durante el trabajo de parto si surge alguna necesidad médica.',
+      preparacion: [
+        'Si es programada, tu médico te indicará ayuno previo (generalmente 6-8 horas)',
+        'Se coloca anestesia (regional en la mayoría de los casos, para que estés despierta pero sin dolor)',
+        'Ten lista tu maleta para el hospital y coordina quién te acompañará'
+      ],
+      queEsperar: 'Se aplica anestesia para que no sientas dolor (usualmente puedes estar despierta y ver a tu bebé apenas nace). El equipo realiza el corte y ayuda a salir al bebé. Después se cierra por capas, lo que toma un poco más de tiempo que la salida del bebé en sí.',
+      normal: 'Molestia y dolor en la zona de la herida durante la recuperación (días a semanas), y algo de sangrado, son esperados. El equipo te indicará analgésicos seguros.',
+      alarma: 'Fiebre, enrojecimiento o secreción en la herida, dolor que empeora en vez de mejorar, o sangrado abundante — consulta de inmediato.',
+      mitos: [
+        { mito: 'La recuperación de una cesárea es igual de rápida que la de un parto vaginal.', real: 'Al ser una cirugía mayor, la recuperación suele tomar más tiempo; tu médico te indicará los cuidados y tiempos esperados.' }
+      ]
+    },
+
+    amniocentesis: {
+      id: 'amniocentesis', categoria: 'obstetricia',
+      nombre: 'Amniocentesis', subtitulo: 'Muestra del líquido amniótico',
+      icono: iconoAguja,
+      duracion: 'El procedimiento en sí toma unos 5-10 minutos',
+      queEs: 'Es un estudio donde se toma, con una aguja muy fina y guiada por ecografía, una pequeña muestra del líquido que rodea al bebé. Sirve para estudiar la genética del bebé con más precisión cuando otros estudios sugieren revisar más de cerca.',
+      preparacion: [
+        'No requiere ayuno en la mayoría de los casos',
+        'Coméntale a tu médico si tomas medicamentos que afecten la coagulación',
+        'Considera ir acompañada, y descansar el resto del día después del procedimiento'
+      ],
+      queEsperar: 'Se hace con ecografía guiando en todo momento la aguja, para máxima seguridad. Puede sentirse un pinchazo y presión, similar a una toma de sangre pero en el abdomen. La mayoría de las mujeres lo describen como más incómodo que doloroso.',
+      normal: 'Molestia leve tipo cólico y un poco de sensibilidad en el abdomen por uno o dos días son normales.',
+      alarma: 'Salida de líquido por la vagina, fiebre, sangrado, o contracciones — consulta de inmediato a tu médico.',
+      mitos: [
+        { mito: 'La amniocentesis siempre provoca un aborto.', real: 'El riesgo de complicaciones es bajo cuando lo realiza personal capacitado; tu médico te explicará el riesgo específico para tu caso antes de decidir hacerlo.' }
+      ]
+    },
+
+    episiotomia: {
+      id: 'episiotomia', categoria: 'obstetricia',
+      nombre: 'Episiotomía', subtitulo: 'Corte quirúrgico durante el parto',
+      icono: iconoTijeras,
+      duracion: 'El corte y su reparación posterior toman pocos minutos dentro del parto',
+      queEs: 'Es un pequeño corte que a veces se hace en la zona entre la vagina y el ano, justo antes de que nazca el bebé, para ampliar el espacio de salida. No se hace de forma rutinaria en todos los partos — se decide según cada caso.',
+      preparacion: [
+        'Puedes conversar con tu médico de antemano sobre en qué situaciones se consideraría necesaria',
+        'No requiere ninguna preparación especial de tu parte'
+      ],
+      queEsperar: 'Si se realiza, se hace en el momento justo del nacimiento, cuando la zona ya está muy distendida por la presión del bebé, lo que reduce la sensación del corte. Después del parto, se repara con puntos que se disuelven solos con el tiempo.',
+      normal: 'Molestia y sensibilidad en la zona durante la recuperación (días a un par de semanas) son normales; el dolor va disminuyendo con los días.',
+      alarma: 'Fiebre, mal olor, enrojecimiento fuerte, o dolor que empeora en vez de mejorar — consulta a tu médico.',
+      mitos: [
+        { mito: 'Se hace en todos los partos por rutina.', real: 'No es un paso obligatorio; se decide según cómo evoluciona cada parto en particular.' }
+      ]
+    },
+
+    cuidadosPostparto: {
+      id: 'cuidadosPostparto', categoria: 'obstetricia',
+      nombre: 'Cuidados postparto', subtitulo: 'Recuperación en las primeras semanas',
+      icono: iconoBebe,
+      duracion: 'La recuperación general toma varias semanas (más si fue cesárea)',
+      queEs: 'Es el período de recuperación de tu cuerpo después del parto, conocido también como cuarentena. Durante estas semanas el útero vuelve poco a poco a su tamaño normal y el cuerpo se va adaptando después del embarazo y el parto.',
+      preparacion: [
+        'Organiza apoyo en casa para las primeras semanas (pareja, familia)',
+        'Ten a mano tus analgésicos indicados y productos de higiene postparto',
+        'Agenda tu cita de control postparto con tu médico'
+      ],
+      queEsperar: 'Es normal tener un sangrado similar a un período (llamado loquios) que va disminuyendo con los días o semanas. También son comunes el cansancio, cambios de ánimo, y molestias en la zona del parto (vaginal o de la cesárea).',
+      normal: 'Sangrado decreciente, cansancio, y sensibilidad en la zona del parto son parte esperada de la recuperación.',
+      alarma: 'Fiebre, sangrado muy abundante, dolor de cabeza fuerte, hinchazón repentina, o pensamientos de hacerte daño a ti o al bebé — busca ayuda médica de inmediato, no esperes a la siguiente cita.',
+      mitos: [
+        { mito: 'Debes sentirte feliz todo el tiempo después de tener a tu bebé.', real: 'Es común sentir una mezcla de emociones, incluido cansancio o tristeza; si estos sentimientos persisten o se intensifican, es importante comentarlo con tu médico.' }
+      ]
+    },
+
+    lactanciaInmediata: {
+      id: 'lactanciaInmediata', categoria: 'obstetricia',
+      nombre: 'Lactancia inmediata', subtitulo: 'Apego piel con piel al nacer',
+      icono: iconoBebe,
+      duracion: 'La primera hora después del nacimiento es clave',
+      queEs: 'Es la práctica de poner al bebé sobre el pecho de la mamá, piel con piel, justo después de nacer, y ayudarlo a intentar amamantar por primera vez. Ayuda a que el bebé se mantenga calmado y con buena temperatura, y facilita el inicio de la lactancia.',
+      preparacion: [
+        'Puedes comentarle a tu médico o al hospital que te gustaría este contacto inmediato, si es posible según cómo transcurra el parto',
+        'No necesitas preparación especial de tu parte, el equipo de salud te guía en el momento'
+      ],
+      queEsperar: 'Justo después de nacer, si no hay ninguna complicación, se coloca al bebé sobre tu pecho para ese primer contacto. El bebé puede buscar el pecho por sí mismo, aunque no siempre logra amamantar de inmediato — es normal, es parte del proceso de aprendizaje de ambos.',
+      normal: 'Es normal que al inicio la técnica no sea perfecta, o que el bebé tarde en engancharse bien; el personal de salud puede ayudarte a acomodarlo.',
+      alarma: 'Si sientes dolor fuerte al amamantar (más allá de una molestia leve inicial), o el bebé no logra alimentarse en las primeras horas, pide ayuda al personal de salud.',
+      mitos: [
+        { mito: 'Si no logro amamantar de inmediato, ya no voy a poder hacerlo después.', real: 'El inicio de la lactancia puede tomar tiempo y práctica; con apoyo adecuado, la mayoría de las mamás logran establecerla en los días siguientes.' }
+      ]
     }
   };
 
   /* ============================================================
-     2. ÍCONOS (SVG simples, estilo ilustración — no fotos reales)
+     3. ÍCONOS (SVG simples, estilo ilustración — no fotos reales)
      ============================================================ */
+  function iconoCategoriaGineco() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--accent-soft)"/>
+      <circle cx="24" cy="18" r="7" stroke="var(--primary)" stroke-width="2.2"/>
+      <path d="M24 25v9M18 30h12" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function iconoCategoriaObste() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--obst-soft)"/>
+      <path d="M24 14c-6 0-9 5-9 10 0 7 9 12 9 12s9-5 9-12c0-5-3-10-9-10z" stroke="var(--primary)" stroke-width="2.2" stroke-linejoin="round"/>
+      <circle cx="24" cy="24" r="2.3" fill="var(--obst)"/>
+    </svg>`;
+  }
   function iconoPap() {
     return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="24" cy="24" r="22" fill="var(--accent-soft)"/>
@@ -535,18 +869,98 @@
       <path d="M24 14v18M18 15h12M20 32c0 3 1.5 5 4 6 2.5-1 4-3 4-6" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
   }
+  function iconoLupa() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--obst-soft)"/>
+      <circle cx="21" cy="21" r="8" stroke="var(--primary)" stroke-width="2.2"/>
+      <line x1="27" y1="27" x2="33" y2="33" stroke="var(--primary)" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function iconoAguja() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--accent-soft)"/>
+      <line x1="16" y1="32" x2="32" y2="16" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="27" y1="15" x2="33" y2="21" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="16" cy="32" r="2" fill="var(--accent)"/>
+    </svg>`;
+  }
+  function iconoCamara() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--calm-soft)"/>
+      <rect x="14" y="19" width="16" height="11" rx="2" stroke="var(--primary)" stroke-width="2.2"/>
+      <path d="M30 22l5-3v10l-5-3" stroke="var(--primary)" stroke-width="2.2" stroke-linejoin="round"/>
+    </svg>`;
+  }
+  function iconoTijeras() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--alert-soft)"/>
+      <circle cx="17" cy="16" r="3" stroke="var(--primary)" stroke-width="2"/>
+      <circle cx="17" cy="32" r="3" stroke="var(--primary)" stroke-width="2"/>
+      <line x1="19.5" y1="18" x2="33" y2="30" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="19.5" y1="30" x2="33" y2="18" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function iconoChip() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--accent-soft)"/>
+      <rect x="16" y="21" width="18" height="6" rx="3" stroke="var(--primary)" stroke-width="2.2"/>
+    </svg>`;
+  }
+  function iconoLatido() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--obst-soft)"/>
+      <path d="M12 24h6l3-8 5 16 3-8h7" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+  }
+  function iconoCalendario() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--obst-soft)"/>
+      <rect x="13" y="15" width="22" height="19" rx="2.5" stroke="var(--primary)" stroke-width="2.2"/>
+      <line x1="13" y1="21" x2="35" y2="21" stroke="var(--primary)" stroke-width="2"/>
+      <line x1="18" y1="12" x2="18" y2="18" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="30" y1="12" x2="30" y2="18" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function iconoBebe() {
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" fill="var(--obst-soft)"/>
+      <circle cx="24" cy="19" r="6.5" stroke="var(--primary)" stroke-width="2.2"/>
+      <path d="M15 34c1-6 4-9 9-9s8 3 9 9" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>`;
+  }
+
   const iconoVolver = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const iconoChevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
   /* ============================================================
-     3. RENDER — construye el HTML a partir de los datos
+     4. RENDER — construye el HTML a partir de los datos
      ============================================================ */
 
-  // --- 3.1 Pantalla de selección (tarjetas) ---
-  function renderSelector() {
-    const cont = document.getElementById('selector');
-    cont.innerHTML = Object.values(FICHAS).map(f => `
-      <div class="selector-card" tabindex="0" role="button" data-id="${f.id}" onclick="abrirFicha('${f.id}')" onkeypress="if(event.key==='Enter') abrirFicha('${f.id}')">
+  // --- 4.1 Pantalla de categorías ---
+  function renderCategorias() {
+    const cont = document.getElementById('categorias');
+    cont.innerHTML = Object.values(CATEGORIAS).map(c => {
+      const total = Object.values(FICHAS).filter(f => f.categoria === c.id).length;
+      return `
+        <div class="categoria-card ${c.claseCss}" tabindex="0" role="button" onclick="abrirCategoria('${c.id}')" onkeypress="if(event.key==='Enter') abrirCategoria('${c.id}')">
+          ${c.icono()}
+          <h3>${c.nombre}</h3>
+          <p>${c.subtitulo}</p>
+          <span class="cuenta">${total} fichas</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // --- 4.2 Lista de fichas dentro de una categoría ---
+  let categoriaActual = null;
+  function renderListaFichas(catId) {
+    const cat = CATEGORIAS[catId];
+    document.getElementById('lista-header').innerHTML = `${cat.icono()}<h2>${cat.nombre}</h2>`;
+    const grid = document.getElementById('lista-grid');
+    const fichasDeCategoria = Object.values(FICHAS).filter(f => f.categoria === catId);
+    grid.innerHTML = fichasDeCategoria.map(f => `
+      <div class="selector-card" tabindex="0" role="button" onclick="abrirFicha('${f.id}')" onkeypress="if(event.key==='Enter') abrirFicha('${f.id}')">
         ${f.icono()}
         <h3>${f.nombre}</h3>
         <p>${f.subtitulo}</p>
@@ -554,11 +968,7 @@
     `).join('');
   }
 
-  // --- 3.2 Medidor de molestia (elemento visual reutilizado) ---
-  // Dibuja una "reglita" de 4 segmentos, cada uno con su propio
-  // color fijo (verde -> ámbar -> coral -> terracota, tipo semáforo
-  // de intensidad), y rellena tantos como indique el nivel de la
-  // ficha (1 = leve ... 4 = más intenso).
+  // --- 4.3 Medidor de molestia (solo si la ficha lo trae) ---
   const COLORES_MOLESTIA = ['var(--calm)', 'var(--amber)', 'var(--accent)', 'var(--alert)'];
   function renderMedidor(m) {
     const segmentos = [0, 1, 2, 3].map(i => {
@@ -576,9 +986,9 @@
     `;
   }
 
-  // --- 3.3 Checklist de preparación ---
+  // --- 4.4 Checklist de preparación ---
   function renderChecklist(items) {
-    return `<div class="checklist">` + items.map((txt, i) => `
+    return `<div class="checklist">` + items.map((txt) => `
       <div class="checklist-item" tabindex="0" onclick="toggleCheck(this)" onkeypress="if(event.key==='Enter') toggleCheck(this)">
         <div class="checklist-box"></div>
         <span class="txt">${txt}</span>
@@ -587,7 +997,7 @@
   }
   function toggleCheck(el) { el.classList.toggle('checked'); }
 
-  // --- 3.4 Comparador de tipos (usado en DIU) ---
+  // --- 4.5 Comparador de tipos (usado en DIU) ---
   function renderComparador(tipos) {
     return `<div class="comparador">` + tipos.map(t => `
       <div class="comparador-card">
@@ -599,7 +1009,7 @@
     `).join('') + `</div>`;
   }
 
-  // --- 3.5 Lista de mitos ---
+  // --- 4.6 Lista de mitos ---
   function renderMitos(mitos) {
     return mitos.map(m => `
       <div class="mito">
@@ -609,7 +1019,7 @@
     `).join('');
   }
 
-  // --- 3.6 Un ítem de acordeón genérico ---
+  // --- 4.7 Ítem de acordeón genérico ---
   function accordionItem(titulo, contenidoHTML, abiertoPorDefecto = false) {
     return `
       <div class="accordion-item ${abiertoPorDefecto ? 'open' : ''}">
@@ -631,7 +1041,7 @@
     panel.style.maxHeight = abrir ? panel.scrollHeight + 'px' : '0px';
   }
 
-  // --- 3.7 Vista completa de una ficha ---
+  // --- 4.8 Vista completa de una ficha ---
   function renderFicha(f) {
     let secciones = '';
 
@@ -652,12 +1062,17 @@
       <div class="caja-alerta"><b>Consulta si:</b> ${f.alarma}</div>
     `);
 
-    if (f.mitos) {
+    if (f.mitos && f.mitos.length) {
       secciones += accordionItem('Mitos comunes', renderMitos(f.mitos));
     }
 
+    // El medidor de molestia SOLO se dibuja si la ficha trae el
+    // campo "molestia" (todas las de Ginecología lo traen, las
+    // de Obstetricia lo omiten a propósito).
+    const medidorHTML = f.molestia ? renderMedidor(f.molestia) : '';
+
     return `
-      <button class="btn-volver" onclick="volverAlSelector()">${iconoVolver} Volver</button>
+      <button class="btn-volver" onclick="volverALista()">${iconoVolver} Volver</button>
       <div class="ficha-header">
         ${f.icono()}
         <div>
@@ -665,37 +1080,55 @@
           <span class="mono">${f.subtitulo} · ${f.duracion}</span>
         </div>
       </div>
-      ${renderMedidor(f.molestia)}
+      ${medidorHTML}
       ${secciones}
       <div class="acciones">
         <button class="btn-accion" onclick="window.print()">Imprimir / Guardar como PDF</button>
-        <button class="btn-accion primario" onclick="volverAlSelector()">Ver otra ficha</button>
+        <button class="btn-accion primario" onclick="volverALista()">Ver otra ficha</button>
       </div>
     `;
   }
 
   /* ============================================================
-     4. NAVEGACIÓN entre pantallas
+     5. NAVEGACIÓN entre las 3 pantallas
      ============================================================ */
-  function abrirFicha(id) {
-    const f = FICHAS[id];
-    document.getElementById('selector').style.display = 'none';
-    const view = document.getElementById('ficha-view');
-    view.innerHTML = renderFicha(f);
-    view.style.display = 'block';
+  function mostrarSolo(id) {
+    ['categorias', 'lista-fichas', 'ficha-view'].forEach(otherId => {
+      document.getElementById(otherId).style.display = (otherId === id)
+        ? (id === 'categorias' ? 'grid' : 'block')
+        : 'none';
+    });
     window.scrollTo(0, 0);
   }
 
-  function volverAlSelector() {
-    document.getElementById('ficha-view').style.display = 'none';
-    document.getElementById('selector').style.display = 'grid';
-    window.scrollTo(0, 0);
+  function abrirCategoria(catId) {
+    categoriaActual = catId;
+    renderListaFichas(catId);
+    mostrarSolo('lista-fichas');
+  }
+
+  function abrirFicha(id) {
+    const f = FICHAS[id];
+    categoriaActual = f.categoria;
+    document.getElementById('ficha-view').innerHTML = renderFicha(f);
+    mostrarSolo('ficha-view');
+  }
+
+  function volverALista() {
+    renderListaFichas(categoriaActual);
+    mostrarSolo('lista-fichas');
+  }
+
+  function volverACategorias() {
+    mostrarSolo('categorias');
   }
 
   /* ============================================================
-     5. INICIO
+     6. INICIO
      ============================================================ */
-  renderSelector();
+  // Texto del botón "volver" fijo dentro de la lista de fichas
+  document.getElementById('lista-fichas').querySelector('.btn-volver').innerHTML = iconoVolver + ' Volver a categorías';
+  renderCategorias();
 </script>
 
 </body>
