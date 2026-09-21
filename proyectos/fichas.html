@@ -320,6 +320,37 @@
   @media print {
     .btn-volver, .acciones { display: none !important; }
     .accordion-panel { max-height: none !important; }
+
+    /* Márgenes de página más generosos y sin el "salto raro"
+       que deja un espacio grande en blanco al cortar una
+       sección justo por la mitad. */
+    @page { margin: 1.6cm; }
+
+    /* Fuerza a imprimir TODOS los colores de fondo (cajas
+       normal/alerta, chevrones, medidor) — por defecto el
+       navegador los omite en la vista de impresión/PDF. */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* Evita que una sección se corte a la mitad entre dos
+       páginas — si no cabe completa, el navegador la empieza
+       de página nueva, en vez de partirla dejando un hueco. */
+    .accordion-item,
+    .caja-normal,
+    .caja-alerta,
+    .medidor,
+    .comparador-card,
+    .ficha-header,
+    .mito {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* Reduce sombras (no aportan nada en papel/PDF y a veces
+       el navegador las renderiza como un borde gris feo). */
+    .accordion-item, .medidor, .comparador-card { box-shadow: none; }
   }
 
   button:focus-visible, .checklist-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -780,7 +811,7 @@
       nombre: 'Episiotomía', subtitulo: 'Corte quirúrgico durante el parto',
       icono: iconoTijeras,
       duracion: 'El corte y su reparación posterior toman pocos minutos dentro del parto',
-      queEs: 'Es un pequeño corte que a veces se hace en la zona entre la vagina y la zona anal, justo antes de que nazca el bebé, para ampliar el espacio de salida. No se hace de forma rutinaria en todos los partos — se decide según cada caso.',
+      queEs: 'Es un pequeño corte que a veces se hace en el periné (la zona de piel entre la vagina y la parte baja de atrás), justo antes de que nazca el bebé, para ampliar el espacio de salida. No se hace de forma rutinaria en todos los partos — se decide según cada caso.',
       preparacion: [
         'Puedes conversar con tu médico de antemano sobre en qué situaciones se consideraría necesaria',
         'No requiere ninguna preparación especial de tu parte'
